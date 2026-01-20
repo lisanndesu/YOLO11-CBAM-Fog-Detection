@@ -1,0 +1,109 @@
+执行文件：utils/coco2yolo.py
+
+执行文件：（utils/split_dataset.py）
+        上述文件作用如下： 把原图复制到 processed/images
+                          8:1:1 划分 train/val/test
+                        自动生成 cottonweed.yaml
+
+命令行执行：yolo train data=data/cottonweed.yaml model=yolo11n.yaml epochs=50 name=clear
+            最后map50：0.84292     map50-95：0.76415
+---------------------------中度雾图fog_med  beta=0.8-----------------------------------------------2026/1/15
+执行 utils/synthetic_haze_mid.py
+命令行执行:  copy /s /y C:\code_py\yolo11_fog\data\processed\labels\val C:\code_py\yolo11_fog\data\fog_val_med\
+
+命令行执行：  yolo val data=data/fog_med.yaml model=runs/detect/clear/weights/best.pt
+            最后mAP50：0.835      mAP50-95： 0.761
+结果：加雾效果太差，和没加差不多
+--------------------------------合成hard雾  beta=1.2-------------------------------------------2026/1/15
+
+执行 utils/synthetic_haze_hard.py
+命令行执行：xcopy /s /y C:\code_py\yolo11_fog\data\processed\labels\val C:\code_py\yolo11_fog\data\fog_val_hard\
+
+命令行执行： yolo val data=data/fog_val_hard.yaml model=runs/detect/clear/weights/best.pt
+            最后mAP50：0.831，   mAP50-95: 0.759
+结果：加雾效果还是很差，和没加差不多
+--------------------------------合成sereve雾---------------------------------------------2026/1/15
+执行 utiles/synthetic_sereve.py
+命令行执行：  xcopy /s /y C:\code_py\yolo11_fog\data\processed\labels\val C:\code_py\yolo11_fog\data\fog_severe
+
+命令行执行：
+
+
+_____________________________nodeepHaze beta = 0.5 A = 230--------------------------------2026/1/18
+执行：utiles/synthetic_haze_nodeep_0.5_230
+不用命令行拷贝labels
+命令行执行：yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs/detect/clear/weights/best.pt
+            最后mAP50：0.825     mAP50-95：0.754
+
+_____________________________nodeepHaze beta = 1.2 A = 230--------------------------------2026/1/18
+
+
+
+            最后mAP50:0.793       mAP50-95:0.726
+
+
+_____________________________nodeepHaze beta = 1.7 A = 230--------------------------------2026/1/18
+
+
+
+            最后mAP50:0.771       mAP50-95:0.705
+
+---------------------------------- yolo11.yaml中插入CBAM --------------------------------------2026/1/20
+（本项目使用自定义的my_cbam.py,非yolo11内置的conv.py下的CBAM)
+
+从 https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/models/11/yolo11.yaml 下载yolo11.yaml
+在yolo11.yaml中新增  - [-1, 1, CBAM, []] （P3） , nc改为12     另保存为yolo_cbam.yaml
+
+-------------------------------------配置my_cbam并添加到yolo11包中-----------------------2026/1/20
+    \\  运行cbam.py   （使得yolo11_cbam.yaml中可用识别cbam）（其实不运行也行，因为train.py中的import cbam会自动导入
+    \\  运行 train_cbam.py
+    \\  忽略以上已经执行的两步，应手动修改ultralytics/nn/models/等文件夹，具体争取做法如下：（详细步骤：https://www.doubao.com/thread/w26a96e93ade43011）
+在C:\MyFiles\Anaconda3-202402-1\envs\yolo11-fog\Lib\site-packages\ultralytics\nn\modules下新建my_cbam.py
+修改 C:\MyFiles\Anaconda3-202402-1\envs\yolo11-fog\Lib\site-packages\ultralytics\nn\modules\__init__.py:
+    新增：from .my_cbam import CBAM, ChannelAttention, SpatialAttention    # 换为自定义的完整cbam
+    删除：from .conv import (
+        # CBAM,                                              # 取消yolo11内置的cbam
+        # SpatialAttention,
+        # ChannelAttention,
+在C:\MyFiles\Anaconda3-202402-1\envs\yolo11-fog\Lib\site-packages\ultralytics\nn\tasks.py 的 attempt_load_one_weight函数中新增如下代码：
+         import sys
+         sys.modules['__main__'].CBAM = CBAM
+         sys.modules['__main__'].ChannelAttention = ChannelAttention
+         sys.modules['__main__'].SpatialAttention = SpatialAttention
+
+--------------------------------训练模型yolo11-CBAM---------------------------------------
+运行train_cbam.py
+最后结果：           mAP50：0.849     mAP50-95：0.769   （train和val都是清晰图)
+
+________________________________测试yolo11-CBAM   beta = 1.7 A = 230 ------------------------------
+命令行执行： yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\clear_cbam\weights\best.pt
+最后结果：           mAP50：0.812     mAP50-95：0.74
+（对比无CBAM）              0.771              0.705
+
+---------------------------------测试yolo11-CBAM   beta = 1.2   A = 230---------------------------
+命令行执行：yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\clear_cbam\weights\best.pt
+最后结果：           mAP50：0.82     mAP50-95：0.747
+（对比无CBAM）              0.793              0.726
+
+---------------------------------测试yolo11-CBAM   beta = 0.5   A = 230---------------------------
+命令行执行：yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\clear_cbam\weights\best.pt
+最后结果：           mAP50：0.829     mAP50-95：0.754
+（对比无CBAM）        mAP50：0.825     mAP50-95：0.754
+
+
+
+
+
+
+
+
+
+
+Installing collected packages: numpy
+  Attempting uninstall: numpy
+    Found existing installation: numpy 1.26.4
+    Uninstalling numpy-1.26.4:
+      Successfully uninstalled numpy-1.26.4
+Successfully installed numpy-2.2.6
+
+
