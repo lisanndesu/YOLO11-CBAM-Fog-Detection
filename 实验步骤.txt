@@ -71,24 +71,356 @@ _____________________________nodeepHaze beta = 1.7 A = 230----------------------
          sys.modules['__main__'].ChannelAttention = ChannelAttention
          sys.modules['__main__'].SpatialAttention = SpatialAttention
 
---------------------------------训练模型yolo11-CBAM---------------------------------------
+--------------------------------训练模型yolo11-CBAM---------------------------------------2026/1/20
 运行train_cbam.py
 最后结果：           mAP50：0.849     mAP50-95：0.769   （train和val都是清晰图)
+（但是后续（直到yolo11_cbam_light训练/测试完成后）才发现此过程可能有些错误：yolo11_cbam.yaml中插入cbam后，未更改最后一行（detect）的from参数（[16, 19, 22]）
 
-________________________________测试yolo11-CBAM   beta = 1.7 A = 230 ------------------------------
+________________________________测试yolo11-CBAM   beta = 1.7 A = 230 ------------------------------2026/1/20
 命令行执行： yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\clear_cbam\weights\best.pt
 最后结果：           mAP50：0.812     mAP50-95：0.74
 （对比无CBAM）              0.771              0.705
 
----------------------------------测试yolo11-CBAM   beta = 1.2   A = 230---------------------------
+---------------------------------测试yolo11-CBAM   beta = 1.2   A = 230---------------------------2026/1/20
 命令行执行：yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\clear_cbam\weights\best.pt
 最后结果：           mAP50：0.82     mAP50-95：0.747
 （对比无CBAM）              0.793              0.726
 
----------------------------------测试yolo11-CBAM   beta = 0.5   A = 230---------------------------
+---------------------------------测试yolo11-CBAM   beta = 0.5   A = 230---------------------------2026/1/20
 命令行执行：yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\clear_cbam\weights\best.pt
 最后结果：           mAP50：0.829     mAP50-95：0.754
 （对比无CBAM）        mAP50：0.825     mAP50-95：0.754
+
+---------------------------------训练模型yolo11-CBAM-light---------------------------2026/1/21
+轻量版：channelAttention单池化 + 1×1 卷积   spatialAttention:3×3 深度可分离
+修改 nn\modules\my_cbam.py  , 将CBAM/SA/CA上述轻量版本
+运行：yololl-fog/train_cbam_light.py
+最后结果：           mAP50：0.853     mAP50-95：0.771
+（对比完整版CBAM）          0.849              0.769
+（对比无CBAM）        mAP50：0.825     mAP50-95：0.754
+
+（同上，发现此过程可能有些错误：yolo11_cbam.yaml中插入cbam后，未更改最后一行（detect）的from参数（[16, 19, 22]））
+
+++++++++++++++++++++++++++++++++++1/22安排—+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+测试昨天训练的轻量版cbam在各种物化条件下的准确率
+学习yaml文件配置
+先固定cbam内部结构为经典原始结果（ratio = 16， kernal_size = 7)
+测试不同cbam插入数量（1-3），与位置（neck内）， 找到最优yolo11-cbam结构
+调整cbam内部结构/参数，找到最优cbam内部结构
+
+
+---------------------------------测试yolo11-CBAM-light 1.7 230---------------------------2026/1/22
+命令行执行：yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\clear_cbam_light\weights\best.pt
+最后结果：           mAP50：0.791     mAP50-95：0.722
+（对比完整CBAM）          mAP50：0.82     mAP50-95：0.747
+（对比无CBAM）              0.771              0.705
+
+---------------------------------测试yolo11-CBAM-light 1.2 230---------------------------2026/1/22
+命令行执行：yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\clear_cbam_light\weights\best.pt
+最后结果：                 mAP50： 0.802         mAP50-95： 0.732
+（对比完整CBAM）            mAP50：0.82          mAP50-95：0.747
+（对比无CBAM）                    0.793              0.726
+
+---------------------------------测试yolo11-CBAM-light 0.5 230---------------------------2026/1/22
+命令行执行：yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\clear_cbam_light\weights\best.pt
+最后结果：                 mAP50： 0.831          mAP50-95： 0.755
+（完整CBAM：                   mAP50：0.829     mAP50-95：0.754
+（对比无CBAM）                mAP50：0.825     mAP50-95：0.754
+
+
+------------------------------------配置正确的yaml  yolo11_3cbam-------------------------------2026/1/22
+固定cbam内部结构为完整CBAM：
+    修改models/my_cbam.py, 换为完整CBAM
+新建正确的yaml文件： yolo11_3cbam
+    插入三层cbam
+    修复最后一行detect的from参数bug，确保from参数与加入cbam后真实层数匹配
+
+-------------------------------------训练yolo11_3cbam-----------------------------2026/1/22
+命令行运行：yolo train data=data/cottonweed.yaml model=models/yolo11n_3cbam.yaml epochs=50 name=clear_3cbam device=0
+结果：             map50       mAP50-95
+this                 0.86       0.787
+baseline             0.84292    0.76415
+
+---------------------------------测试yolo11-3CBAM- 1.7 230---------------------------2026/1/22
+yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\clear_3cbam\weights\best.pt
+结果：             map50       mAP50-95
+this                 0.806        0.741
+完整CBAM              0.82        0.747
+baseline             0.771              0.705
+
+---------------------------------测试yolo11-3CBAM- 1.2 230---------------------------2026/1/22
+yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\clear_3cbam\weights\best.pt
+结果：             map50       mAP50-95
+this             0.822      0.756
+完整CBAM          0.82       0.747
+baseline         0.793       0.726
+
+
+---------------------------------测试yolo11-3CBAM- 0.5 230---------------------------2026/1/22
+yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\clear_3cbam\weights\best.pt
+结果：             map50       mAP50-95
+this              0.843      0.776
+完整CBAM           0.829      0.754
+baseline           0.825     0.754
+
+
+++++++++++++++++++++++++++++++++++1/23安排—+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+将epoch改为100，重新进行baseline  CBAM  2CBAM  3CBAM 的实验
+确定epoch100的baseline和最优CBAM插入位置/数量后，调整cbam内部结构/参数，找到最优cbam内部结
+
+
+---------------------------------训练baseline_100epochs---------------------------2026/1/23
+yolo train data=data/cottonweed.yaml model=yolo11n.yaml epochs=100 name=baseline_100epochs
+
+
+
+--------------------------------训练模型yolo11-CBAM-100epochs---------------------------------------2026/1/23
+yolo train data=data/cottonweed.yaml model=yolo11_cbam.yaml epochs=100 name=cbam_100epochs
+最后结果：
+
+
+--------------------------------训练模型yolo11-2CBAM-100epochs---------------------------------------2026/1/23
+yolo train data=data/cottonweed.yaml model=yolo11_2cbam.yaml epochs=100 name=2cbam_100epochs
+最后结果：
+
+--------------------------------训练模型yolo11-3CBAM-100epochs---------------------------------------2026/1/23
+yolo train data=data/cottonweed.yaml model=yolo11_3cbam.yaml epochs=100 name=3cbam_100epochs
+
+命令行输出：YOLO11n summary: 319 layers, 2,592,180 parameters, 2,592,164 gradients, 6.5 GFLOPs
+        Speed: 0.3ms preprocess, 2.7ms inference, 0.0ms loss, 3.9ms postprocess per image
+
+最后结果：           0.904          0.835
+
+
+---------------------------------测试baseline_100epochs- 0.5 230---------------------------2026/1/23
+yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\baseline_100epochs\weights\best.pt
+结果：             map50       mAP50-95
+this               0.9        0.832
+
+---------------------------------测试baseline_100epochs- 1.2 230--------------------------2026/1/23
+yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\baseline_100epochs\weights\best.pt
+结果：             map50       mAP50-95
+this                0.889      0.822
+
+---------------------------------测试baseline_100epochs- 1.7 230--------------------------2026/1/23
+yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\baseline_100epochs\weights\best.pt
+结果：             map50       mAP50-95
+this               0.875      0.806
+
+===================================发现baseline_100epochs 在雾图中下降性能太小，只有2pp左右，所以决定不再考虑100epochs的模型-------------------------
+
+------------------------------训练yolo11_2cbam-----------------------------------------------2026/1/23
+yolo train data=data/cottonweed.yaml model=models/yolo11n_2cbam.yaml epochs=50 name=clear_2cbam device=0 > log_2cbam.txt 2>&1
+ 结果：     0.859      0.782
+
+ ------------------------------测试yolo11_2cbam  1.7 230-----------------------------------------------2026/1/23
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\clear_2cbam\weights\best.pt
+结果：         0.802       0.73
+
+ ------------------------------测试yolo11_2cbam  1.2 230-----------------------------------------------2026/1/23
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\clear_2cbam\weights\best.pt
+结果：         0.825      0.754
+
+ ------------------------------测试yolo11_2cbam  0.5 230-----------------------------------------------2026/1/23
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\clear_2cbam\weights\best.pt
+结果:         0.851      0.776
+
+====================================结论  选择2cbam最为最佳插入方式=======================================2026/1/23
+由于 CBAM 可插入位置组合空间较大，本文遵循逐步扩展、性能优先的原则，
+首先评估单点插入（P3），再评估两点（P3+P4）与三点（P3+P4+P5）扩展。
+表 × 显示，随着 CBAM 数量增加，mAP 先升后降：2-CBAM 在清晰图与三种雾浓度下均取得最高 mAP@50，
+而 3-CBAM 因额外参数带来的过拟合风险，雾天性能反而略降。
+因此后续实验均以 2-CBAM 结构为准。
+
+====================================寻找最优CBAM内部结构============================================2026/1/23
+
+-----------------------------------训练 2cbam_NoMaxPool--------------------------------------------2026/1/23
+将my_cbam.py切换为avg-only的cbam
+yolo train data=data/cottonweed.yaml model=models/yolo11n_2cbam.yaml epochs=50 name=2cbam_NoMaxPool device=0  | tee log_NoMaxPool.txt
+ 结果：            0.847      0.776
+ ------------------------------测试2cbam_NoMaxPool  1.7 230-----------------------------------------------2026/1/23
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_NoMaxPool\weights\best.pt
+结果：     0.804      0.738
+
+ ------------------------------测试2cbam_NoMaxPool  1.2 230-----------------------------------------------2026/1/23
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_NoMaxPool\weights\best.pt
+结果：     0.812      0.748
+
+ ------------------------------测试2cbam_NoMaxPool  0.5 230-----------------------------------------------2026/1/23
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_NoMaxPool\weights\best.pt
+结果:     0.829      0.762
+
+-----------------------------------训练 2cbam_NoSA--------------------------------------------2026/1/23
+将my_cbam.py切换为NO_SA的cbam
+yolo train data=data/cottonweed.yaml model=models/yolo11n_2cbam.yaml epochs=50 name=2cbam_NoSA device=0  | tee log_NoCA.txt
+ 结果：0.865      0.779
+ ------------------------------测试2cbam_NoSA  1.7 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_NoSA\weights\best.pt
+结果： 0.797      0.727
+
+ ------------------------------测试2cbam_NoSA  1.2 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_NoSA\weights\best.pt
+结果： 0.819      0.748
+
+
+ ------------------------------测试2cbam_NoSA  0.5 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_NoSA\weights\best.pt
+结果: 0.85      0.772
+
+
+
+-----------------------------------训练 2cbam_NoCA--------------------------------------------2026/1/24
+将my_cbam.py切换为NO_CA的cbam
+yolo train data=data/cottonweed.yaml model=models/yolo11n_2cbam.yaml epochs=50 name=2cbam_NoCA device=0  | tee log_NoSA.txt
+ 结果：0.854      0.774
+
+ ------------------------------测试2cbam_NoCA  1.7 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_NoCA\weights\best.pt
+结果：0.808      0.735
+
+ ------------------------------测试2cbam_NoCA  1.2 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_NoCA\weights\best.pt
+结果： 0.823      0.749
+
+
+ ------------------------------测试2cbam_NoCA  0.5 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_NoCA\weights\best.pt
+结果:0.841      0.766
+
+
+
+
+
+
+-----------------------------------训练 2cbam_NoAvg--------------------------------------------2026/1/24
+将my_cbam.py切换为NO_AVG的cbam
+yolo train data=data/cottonweed.yaml model=models/yolo11n_2cbam.yaml epochs=50 name=2cbam_NoAvg device=0  | tee log_2cbam_NoAvg.txt
+  260 layers, 2,587,248 parameters, 0 gradients, 6.3 GFLOPs
+ 结果：
+
+ ------------------------------测试2cbam_NoAvg  1.7 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_NoAvg\weights\best.pt
+结果：0.817      0.741
+
+ ------------------------------测试2cbam_NoAvg  1.2 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_NoAvg\weights\best.pt
+结果：0.836      0.759
+
+ ------------------------------测试2cbam_NoAvg  0.5 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_NoAvg\weights\best.pt
+结果:0.855      0.773
+
+
+
+
+
+-----------------------------------训练 2cbam_Dilated--------------------------------------------2026/1/24
+将my_cbam.py切换为2cbam_Dilated
+yolo train data=data/cottonweed.yaml model=models/yolo11n_2cbam.yaml epochs=50 name=2cbam_Dilated device=0  | tee log_2cbam_Dilated.txt
+YOLO11n_2cbam summary (fused): 270 layers, 2,587,166 parameters, 0 gradients, 6.3 GFLOPs
+ 结果： 0.868       0.78
+
+ ------------------------------测试2cbam_Dilated  1.7 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_Dilated\weights\best.pt
+结果：0.819      0.743
+Speed: 0.4ms preprocess, 5.7ms inference, 0.0ms loss, 2.2ms postprocess per image
+
+ ------------------------------测试2cbam_Dilated  1.2 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_Dilated\weights\best.pt
+结果： 0.831      0.755
+Speed: 0.4ms preprocess, 6.1ms inference, 0.0ms loss, 2.3ms postprocess per image
+
+ ------------------------------测试2cbam_Dilated  0.5 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_Dilated\weights\best.pt
+结果:0.848      0.772
+Speed: 0.5ms preprocess, 6.3ms inference, 0.0ms loss, 2.6ms postprocess per image
+
+
+---------------------------------------------新增去雾模块--------------------------------------------------
+新建models/fog_gate.py文件
+修改models/__init__.py, 提供向外接口
+修改task.py， 新增sys.modules['__main__'].FogGate = FogGate
+新建 yolo11_2cbam_FogGate.yaml
+
+
+-----------------------------------训练 2cbam_FogGate--------------------------------------------2026/1/24
+将my_cbam.py切换为2cbam_Dilated
+yolo train data=data/cottonweed.yaml model=models/yolo11_2cbam_FogGate.yaml epochs=50 name=2cbam_FogGate device=0  | tee log_2cbam_FogGate.txt
+ 结果： 0.851      0.771
+YOLO11_2cbam_FogGate summary (fused): 276 layers, 2,596,406 parameters, 0 gradients, 6.3 GFLOPs
+
+ ------------------------------测试2cbam_FogGate  1.7 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_FogGate\weights\best.pt
+结果：0.801      0.732
+Speed: 0.4ms preprocess, 6.2ms inference, 0.0ms loss, 2.3ms postprocess per image
+
+ ------------------------------测试2cbam_FogGate  1.2 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_FogGate\weights\best.pt
+结果：0.817      0.748
+Speed: 0.4ms preprocess, 6.3ms inference, 0.0ms loss, 2.4ms postprocess per image
+
+
+
+ ------------------------------测试2cbam_FogGate  0.5 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_FogGate\weights\best.pt
+结果: 0.836      0.763
+Speed: 0.5ms preprocess, 6.6ms inference, 0.0ms loss, 2.3ms postprocess per image
+
+
+
+
+-----------------------------------训练 2cbam_FFA--------------------------------------------2026/1/24
+将my_cbam.py切换为2cbam_Dilated, fog_gate.py 切为FFA
+yolo train data=data/cottonweed.yaml model=models/yolo11_2cbam_FogGate.yaml epochs=50 name=2cbam_FFA device=0  | tee log_2cbam_FFA.txt
+ 结果： 0.847      0.764
+
+276 layers, 2,589,494 parameters, 0 gradients, 6.3 GFLOPs
+
+ ------------------------------测试2cbam_FFA  1.7 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_FFA\weights\best.pt
+结果： 0.799      0.725
+Speed: 0.4ms preprocess, 6.5ms inference, 0.0ms loss, 2.2ms postprocess per image
+
+
+ ------------------------------测试2cbam_FFA  1.2 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_FFA\weights\best.pt
+结果：0.817      0.741
+Speed: 0.4ms preprocess, 5.8ms inference, 0.0ms loss, 2.3ms postprocess per image
+
+ ------------------------------测试2cbam_FFA  0.5 230-----------------------------------------------2026/1/24
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_FFA\weights\best.pt
+结果: 0.839      0.763
+Speed: 0.4ms preprocess, 5.9ms inference, 0.0ms loss, 2.1ms postprocess per image
+
+
+
+-----------------------------------训练 2cbam_autoFogGate--------------------------------------------2026/1/25
+将my_cbam.py切换为2cbam_Dilated, fog_gate.py auto---
+yolo train data=data/cottonweed.yaml model=models/yolo11_2cbam_FogGate.yaml epochs=50 name=2cbam_autoFogGate device=0  | tee log_2cbam_autoFogGate.txt
+ 结果： 0.86      0.789
+YOLO11_2cbam_FogGate summary (fused): 276 layers, 2,596,407 parameters, 0 gradients, 6.3 GFLOPs
+
+
+ ------------------------------测试2cbam_autoFogGate  1.7 230-----------------------------------------------2026/1/25
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_autoFogGate\weights\best.pt
+结果： 0.81      0.743
+Speed: 0.4ms preprocess, 6.4ms inference, 0.0ms loss, 2.7ms postprocess per image
+
+
+ ------------------------------测试2cbam_autoFogGate  1.2 230-----------------------------------------------2026/1/25
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_autoFogGate\weights\best.pt
+结果：0.828      0.761
+Speed: 0.4ms preprocess, 6.1ms inference, 0.0ms loss, 2.0ms postprocess per image
+
+
+ ------------------------------测试2cbam_autoFogGate  0.5 230-----------------------------------------------2026/1/25
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_autoFogGate\weights\best.pt
+结果:0.847      0.778
+Speed: 0.4ms preprocess, 6.2ms inference, 0.0ms loss, 2.1ms postprocess per image
+
+
+
+
 
 
 
