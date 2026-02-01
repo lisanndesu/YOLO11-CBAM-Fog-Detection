@@ -420,8 +420,119 @@ Speed: 0.4ms preprocess, 6.2ms inference, 0.0ms loss, 2.1ms postprocess per imag
 
 
 
+==========================================补做实验：2cbam_NoAvg_Dilated=================================
+-----------------------------------训练 2cbam_NoAvg_Dilated--------------------------------------------2026/1/26
+将my_cbam.py切换为2cbam_NoAvg_Dilated
+yolo train data=data/cottonweed.yaml model=models/yolo11_2cbam.yaml epochs=50 name=2cbam_NoAvg_Dilated device=0  | tee log_2cbam_NoAvg_Dilated.txt
+ 结果： 0.847       0.77
+YOLO11_2cbam summary (fused): 268 layers, 2,587,166 parameters, 0 gradients, 6.3 GFLOPs
+
+ ------------------------------测试2cbam_NoAvg_Dilated  1.7 230-----------------------------------------------2026/1/26
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\2cbam_NoAvg_Dilated\weights\best.pt
+结果：0.797      0.728
+Speed: 0.5ms preprocess, 6.8ms inference, 0.0ms loss, 2.7ms postprocess per image
+
+ ------------------------------测试2cbam_NoAvg_Dilated  1.2 230-----------------------------------------------2026/1/26
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\2cbam_NoAvg_Dilated\weights\best.pt
+结果： 0.817      0.748
+Speed: 0.5ms preprocess, 6.7ms inference, 0.0ms loss, 2.4ms postprocess per image
+
+ ------------------------------测试2cbam_NoAvg_Dilated  0.5 230-----------------------------------------------2026/1/26
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\2cbam_NoAvg_Dilated\weights\best.pt
+结果: 0.841      0.768
+Speed: 0.5ms preprocess, 6.3ms inference, 0.0ms loss, 2.5ms postprocess per image
 
 
+
+--------------------------------知识蒸馏---------------------------------------
+升级ultralytics前：Ultralytics 8.3.11 🚀 Python-3.10.19 torch-2.7.1+cu118
+由于知识蒸馏需要8.4+的ultralytics，现在要对ultrallytic进行升级
+pip freeze > yolo11_fog_requirements.txt   导出所有依赖进行备份
+pip install -U ultralytics  升级ultralytics
+
+两条路：将yolo11scale调小，作为student model
+       放弃知识蒸馏，使用int8量化
+
+选择第一条， 将yolo11n的scale的width调为1.5， 文件名为miniYolo11n.yaml
+执行train_kd.py
+结果：0.232      0.148
+miniYolo11n summary (fused): 101 layers, 1,151,191 parameters, 0 gradients, 3.2 GFLOPs
+mAP太低，try epochs 50：
+---------------------------------- set epochs = 50 -----------------------------------2026/1/28
+run train_kd.py
+ 0.582      0.486
+miniYolo11n summary (fused): 101 layers, 1,151,191 parameters, 0 gradients, 3.2 GFLOPs
+
+ ------------------------------测试KD_miniYolo11n_50epochs  1.7 230-----------------------------------------------2026/1/28
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\KD_miniYolo11n_50epochs\weights\best.pt
+结果： 0.508      0.428
+Speed: 2.4ms preprocess, 7.1ms inference, 0.0ms loss, 2.3ms postprocess per image
+
+ ------------------------------测试KD_miniYolo11n_50epochs  1.2 230-----------------------------------------------2026/1/28
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\KD_miniYolo11n_50epochs\weights\best.pt
+结果：0.535      0.452
+Speed: 2.5ms preprocess, 6.9ms inference, 0.0ms loss, 2.5ms postprocess per image
+
+ ------------------------------测试KD_miniYolo11n_50epochs  0.5 230-----------------------------------------------2026/1/28
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\KD_miniYolo11n_50epochs\weights\best.pt
+结果:0.565      0.474
+Speed: 2.3ms preprocess, 7.1ms inference, 0.0ms loss, 2.4ms postprocess per image
+
+
+
+--------------------------------------------# 1. 导出 ONNX----------------------------------------------------
+yolo export model=runs/detect/2cbam_autoFogGate/weights/best.pt format=onnx opset=12
+
+------------------------------------# 2. TensorRT INT8（用你已有雾图做校准）-----------------------------
+yolo export model=runs/detect/2cbam_autoFogGate/weights/best.pt format=engine int8=True data=data/cottonweed.yaml calib_data=data/cottonweed.yaml
+yolo export model=runs/detect/2cbam_autoFogGate/weights/best.pt format=engine int8=True data=data/cottonweed.yaml
+pip install pycuda==2024.1 -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install nvidia-tensorrt==8.6.1.6 --index-url https://pypi.nvidia.com -i https://pypi.tuna.tsinghua.edu.cn/simple
+以上都试了，没用，还是不量化了，好好做蒸馏吧
+
+
+
+---------------------------------- set epochs = 100 -----------------------------------2026/1/28
+alpha = 0.5,    miniYolo11n.yaml的width = 0.15
+run train_kd.py
+ 0.754      0.661
+ miniYolo11n summary (fused): 101 layers, 1,151,191 parameters, 0 gradients, 3.2 GFLOPs
+
+ ------------------------------测试KD_miniYolo11n_100epochs  1.7 230-----------------------------------------------2026/1/28
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\KD_miniYolo11n_100epochs\weights\best.pt
+结果：0.706      0.621
+Speed: 2.8ms preprocess, 6.9ms inference, 0.0ms loss, 2.5ms postprocess per image
+
+
+ ------------------------------测试KD_miniYolo11n_100epochs  1.2 230-----------------------------------------------2026/1/28
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\KD_miniYolo11n_100epochs\weights\best.pt
+结果： 0.72      0.634
+Speed: 2.5ms preprocess, 7.0ms inference, 0.0ms loss, 2.4ms postprocess per image
+
+ ------------------------------测试KD_miniYolo11n_100epochs  0.5 230-----------------------------------------------2026/1/28
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\KD_miniYolo11n_100epochs\weights\best.pt
+结果:0.737      0.648
+Speed: 2.5ms preprocess, 7.5ms inference, 0.0ms loss, 2.4ms postprocess per image
+
+
+
+
+---------------------------------- 训练KD_miniYolo11n_100epochs_0.3alpha -----------------------------------2026/1/31
+将alpha从0.5调到0.3
+python train_kd_100epochs_0.3alpha.py | tee log_KD_miniYolo11n_100epochs_0.3alpha.txt
+
+ ------------------------------测试KD_miniYolo11n_100epochs_0.3alpha  1.7 230-----------------------------------------------2026/1/31
+ yolo val data=data/fog_val_nodeep_1.7_230.yaml model=runs\detect\KD_miniYolo11n_100epochs_0.3alpha\weights\best.pt
+结果：
+
+
+ ------------------------------测试KD_miniYolo11n_100epochs_0.3alpha  1.2 230-----------------------------------------------2026/1/31
+ yolo val data=data/fog_val_nodeep_1.2_230.yaml model=runs\detect\KD_miniYolo11n_100epochs_0.3alpha\weights\best.pt
+结果：
+
+ ------------------------------测试KD_miniYolo11n_100epochs_0.3alpha  0.5 230-----------------------------------------------2026/1/31
+ yolo val data=data/fog_val_nodeep_0.5_230.yaml model=runs\detect\KD_miniYolo11n_100epochs_0.3alpha\weights\best.pt
+结果:
 
 
 
@@ -439,3 +550,6 @@ Installing collected packages: numpy
 Successfully installed numpy-2.2.6
 
 
+蒸馏优化策略：
+特征蒸馏损失的权重需高于分类损失
+简化模型结构-》提高推理速度
